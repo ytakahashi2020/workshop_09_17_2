@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>落ちものパズル</title>
+<style>
+  :root {
+    --cell: min(4.2vw, 28px);
+    --board-width: calc(var(--cell) * 10);
+    --board-height: calc(var(--cell) * 20);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #101426;
+    color: #f5f7ff;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    padding: 24px;
+  }
+
+  .game-wrap {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .panel {
+    background: #1b2138;
+    border: 1px solid #343d60;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 16px 40px rgba(0,0,0,.25);
+  }
+
+  h1 {
+    font-size: 24px;
+    margin: 0 0 14px;
+    letter-spacing: .08em;
+  }
+
+  .board-frame {
+    position: relative;
+    padding: 8px;
+    background: #080b17;
+    border: 2px solid #3b466b;
+    border-radius: 10px;
+  }
+
+  #board {
+    display: grid;
+    grid-template-columns: repeat(10, var(--cell));
+    grid-template-rows: repeat(20, var(--cell));
+    width: var(--board-width);
+    height: var(--board-height);
+    background:
+      linear-gradient(#202944 1px, transparent 1px),
+      linear-gradient(90deg, #202944 1px, transparent 1px);
+    background-size: var(--cell) var(--cell);
+  }
+
+  .cell {
+    width: var(--cell);
+    height: var(--cell);
+    border: 1px solid rgba(10, 13, 28, .35);
+  }
+
+  .filled {
+    border: 2px solid rgba(255,255,255,.25);
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,.15);
+  }
+
+  .i { background: #36d9e8; }
+  .o { background: #f7d64a; }
+  .t { background: #b76cff; }
+  .s { background: #54dc78; }
+  .z { background: #ff5d70; }
+  .j { background: #5688ff; }
+  .l { background: #ff9c45; }
+
+  .side {
+    min-width: 190px;
+    max-width: 240px;
+  }
+
+  .stat {
+    background: #11162a;
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+  }
+
+  .stat-label {
+    color: #aeb8d8;
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+
+  .stat-value {
+    font-size: 28px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+  }
+
+  #next {
+    display: grid;
+    grid-template-columns: repeat(4, 22px);
+    grid-template-rows: repeat(4, 22px);
+    gap: 2px;
+    justify-content: center;
+    margin-top: 8px;
+  }
+
+  .preview-cell {
+    width: 22px;
+    height: 22px;
+    border-radius: 3px;
+  }
+
+  .controls {
+    color: #c5cbe0;
+    font-size: 13px;
+    line-height: 1.8;
+    margin-top: 16px;
+  }
+
+  button {
+    width: 100%;
+    border: 0;
+    border-radius: 10px;
+    padding: 12px;
+    background: #657dff;
+    color: white;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 14px;
+  }
+
+  button:hover { background: #7c91ff; }
+  button:active { transform: translateY(1px); }
+
+  .overlay {
+    position: absolute;
+    inset: 8px;
+    display: none;
+    place-items: center;
+    background: rgba(8,11,23,.82);
+    border-radius: 4px;
+    text-align: center;
+    padding: 20px;
+  }
+
+  .overlay.show { display: grid; }
+
+  .overlay-title {
+    font-size: 30px;
+    font-weight: 900;
+    letter-spacing: .08em;
+  }
+
+  .overlay-sub {
+    color: #c5cbe0;
+    margin-top: 8px;
+    font-size: 13px;
+  }
+
+  @media (max-width: 520px) {
+    body { padding: 12px; }
+    .game-wrap { gap: 14px; }
+    .panel { padding: 14px; }
+    .side { width: 100%; max-width: 310px; }
+    .controls { display: none; }
+  }
+</style>
+</head>
+<body>
+  <main class="game-wrap">
+    <section class="panel">
+      <h1>落ちものパズル</h1>
+      <div class="board-frame">
+        <div id="board" aria-label="10列20行のゲーム盤"></div>
+        <div id="overlay" class="overlay">
+          <div>
+            <div class="overlay-title">GAME OVER</div>
+            <div class="overlay-sub">「もう一度遊ぶ」を押してください</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="panel side">
+      <div class="stat">
+        <div class="stat-label">SCORE</div>
+        <div id="score" class="stat-value">0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">LINES</div>
+        <div id="lines" class="stat-value">0</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">NEXT</div>
+        <div id="next"></div>
+      </div>
+
+      <button id="restart">もう一度遊ぶ</button>
+
+      <div class="controls">
+        <strong>操作方法</strong><br>
+        ← →：左右に移動<br>
+        ↑：回転<br>
+        ↓：早く落とす<br>
+        スペース：一気に落とす
+      </div>
+    </aside>
+  </main>
+
+<script>
+(() => {
+  const COLS = 10;
+  const ROWS = 20;
+  const TYPES = ["i", "o", "t", "s", "z", "j", "l"];
+
+  const SHAPES = {
+    i: [[0,1],[1,1],[2,1],[3,1]],
+    o: [[1,0],[2,0],[1,1],[2,1]],
+    t: [[1,0],[0,1],[1,1],[2,1]],
+    s: [[1,0],[2,0],[0,1],[1,1]],
+    z: [[0,0],[1,0],[1,1],[2,1]],
+    j: [[0,0],[0,1],[1,1],[2,1]],
+    l: [[2,0],[0,1],[1,1],[2,1]]
+  };
+
+  const boardElement = document.getElementById("board");
+  const scoreElement = document.getElementById("score");
+  const linesElement = document.getElementById("lines");
+  const nextElement = document.getElementById("next");
+  const overlay = document.getElementById("overlay");
+  const restartButton = document.getElementById("restart");
+
+  let board;
+  let current;
+  let nextType;
+  let score;
+  let lines;
+  let gameOver;
+  let lastTime = 0;
+  let dropCounter = 0;
+  let dropInterval = 700;
+  let animationId;
+
+  function createBoard() {
+    return Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+  }
+
+  function randomType() {
+    return TYPES[Math.floor(Math.random() * TYPES.length)];
+  }
+
+  function makePiece(type) {
+    return {
+      type,
+      shape: SHAPES[type].map(([x, y]) => [x, y]),
+      x: 3,
+      y: 0
+    };
+  }
+
+  function rotateShape(shape) {
+    const rotated = shape.map(([x, y]) => [-y, x]);
+    const minX = Math.min(...rotated.map(([x]) => x));
+    const minY = Math.min(...rotated.map(([, y]) => y));
+    return rotated.map(([x, y]) => [x - minX, y - minY]);
+  }
+
+  function collides(piece, dx = 0, dy = 0, shape = piece.shape) {
+    return shape.some(([x, y]) => {
+      const nx = piece.x + x + dx;
+      const ny = piece.y + y + dy;
+      return nx < 0 || nx >= COLS || ny >= ROWS ||
+        (ny >= 0 && board[ny][nx]);
+    });
+  }
+
+  function mergePiece() {
+    current.shape.forEach(([x, y]) => {
+      const nx = current.x + x;
+      const ny = current.y + y;
+      if (ny >= 0) board[ny][nx] = current.type;
+    });
+  }
+
+  function clearLines() {
+    let cleared = 0;
+    board = board.filter(row => {
+      if (row.every(Boolean)) {
+        cleared++;
+        return false;
+      }
+      return true;
+    });
+
+    while (board.length < ROWS) {
+      board.unshift(Array(COLS).fill(null));
+    }
+
+    if (cleared > 0) {
+      const points = [0, 100, 300, 500, 800];
+      score += points[cleared] || cleared * 200;
+      lines += cleared;
+      dropInterval = Math.max(100, 700 - Math.floor(lines / 5) * 50);
+    }
+  }
+
+  function spawn() {
+    current = makePiece(nextType || randomType());
+    nextType = randomType();
+    if (collides(current)) {
+      gameOver = true;
+      overlay.classList.add("show");
+    }
+    renderNext();
+  }
+
+  function move(dx) {
+    if (!gameOver && !collides(current, dx, 0)) {
+      current.x += dx;
+      render();
+    }
+  }
+
+  function rotate() {
+    if (gameOver) return;
+    const rotated = rotateShape(current.shape);
+    const kicks = [0, -1, 1, -2, 2];
+    for (const kick of kicks) {
+      if (!collides(current, kick, 0, rotated)) {
+        current.shape = rotated;
+        current.x += kick;
+        render();
+        return;
+      }
+    }
+  }
+
+  function drop(manual = false) {
+    if (gameOver) return;
+    if (!collides(current, 0, 1)) {
+      current.y++;
+      if (manual) score++;
+    } else {
+      mergePiece();
+      clearLines();
+      spawn();
+    }
+    render();
+  }
+
+  function hardDrop() {
+    if (gameOver) return;
+    let distance = 0;
+    while (!collides(current, 0, 1)) {
+      current.y++;
+      distance++;
+    }
+    score += distance * 2;
+    mergePiece();
+    clearLines();
+    spawn();
+    render();
+  }
+
+  function render() {
+    const cells = boardElement.children;
+    for (let i = 0; i < cells.length; i++) {
+      const y = Math.floor(i / COLS);
+      const x = i % COLS;
+      cells[i].className = "cell";
+      const value = board[y][x];
+      if (value) cells[i].classList.add("filled", value);
+    }
+
+    if (!gameOver && current) {
+      current.shape.forEach(([x, y]) => {
+        const nx = current.x + x;
+        const ny = current.y + y;
+        if (ny >= 0 && nx >= 0 && nx < COLS && ny < ROWS) {
+          const cell = cells[ny * COLS + nx];
+          cell.className = "cell filled " + current.type;
+        }
+      });
+    }
+
+    scoreElement.textContent = score;
+    linesElement.textContent = lines;
+  }
+
+  function renderNext() {
+    nextElement.innerHTML = "";
+    const preview = Array.from({ length: 16 }, () => {
+      const cell = document.createElement("div");
+      cell.className = "preview-cell";
+      nextElement.appendChild(cell);
+      return cell;
+    });
+
+    SHAPES[nextType].forEach(([x, y]) => {
+      preview[y * 4 + x].classList.add(nextType);
+    });
+  }
+
+  function loop(time = 0) {
+    const delta = time - lastTime;
+    lastTime = time;
+    if (!gameOver) {
+      dropCounter += delta;
+      if (dropCounter > dropInterval) {
+        drop();
+        dropCounter = 0;
+      }
+    }
+    animationId = requestAnimationFrame(loop);
+  }
+
+  function start() {
+    cancelAnimationFrame(animationId);
+    board = createBoard();
+    current = null;
+    nextType = randomType();
+    score = 0;
+    lines = 0;
+    gameOver = false;
+    lastTime = 0;
+    dropCounter = 0;
+    dropInterval = 700;
+    overlay.classList.remove("show");
+    spawn();
+    render();
+    animationId = requestAnimationFrame(loop);
+  }
+
+  for (let i = 0; i < COLS * ROWS; i++) {
+    const cell = document.createElement("div");
+    cell.className = "cell";
+    boardElement.appendChild(cell);
+  }
+
+  document.addEventListener("keydown", event => {
+    const keys = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", " "];
+    if (keys.includes(event.key)) event.preventDefault();
+
+    if (event.key === "ArrowLeft") move(-1);
+    if (event.key === "ArrowRight") move(1);
+    if (event.key === "ArrowUp") rotate();
+    if (event.key === "ArrowDown") drop(true);
+    if (event.key === " ") hardDrop();
+  });
+
+  restartButton.addEventListener("click", start);
+  start();
+})();
+</script>
+</body>
+</html>
